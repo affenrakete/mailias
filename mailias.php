@@ -76,7 +76,7 @@ class mailias {
      * text
      */
 
-    private function addNotification($case, $class, $function, $text) {
+    private static function addNotification($case, $class, $function, $text) {
         $this->notification[$case][$class][$this->notificationID] = [
             'function' => $function,
             'text' => $text
@@ -99,7 +99,7 @@ class mailias {
         return $notification;
     }
 
-    private function checkConfig($config = null) {
+    private static function checkConfig($config = null) {
         if (!is_array($config)) {
             self::addNotification('debug', 'system', __FUNCTION__, 'Config not set');
             return false;
@@ -113,7 +113,7 @@ class mailias {
         return true;
     }
 
-    private function checkEmail($email = null) {
+    private static function checkEmail($email = null) {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             self::addNotification('debug', 'system', __FUNCTION__, 'Email not valid -> ' . $email);
             return false;
@@ -121,7 +121,7 @@ class mailias {
         return true;
     }
 
-    private function checkAlias($alias) {
+    private static function checkAlias($alias) {
         $pattern = "/^(?=^.{5,30}$)([a-zA-Z0-9]+)(?:[\w]*[a-zA-Z0-9]+)$/";
         /*
          * Gesamt 5 - 30 Zeichen
@@ -137,7 +137,7 @@ class mailias {
         return false;
     }
 
-    private function checkDomain($domain = null) {
+    private static function checkDomain($domain = null) {
         $pattern = "/(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)/";
 
         if (preg_match($pattern, $domain)) {
@@ -148,7 +148,7 @@ class mailias {
         return false;
     }
 
-    private function checkDescription($description) {
+    private static function checkDescription($description) {
         $pattern = "/^([\w\ \-\.]){0,250}$/";
         /*
          * Gesamt 0 - 250 Zeichen
@@ -172,7 +172,7 @@ class mailias {
         return $this->user['short'];
     }
 
-    private function connect() {
+    private static function connect() {
         $this->mysqli = new \mysqli($this->config['mysqli']['host'], $this->config['mysqli']['user'], $this->config['mysqli']['pass'], $this->config['mysqli']['database'], $this->config['mysqli']['port']);
         $this->mysqli->set_charset('utf8');
 
@@ -207,7 +207,7 @@ class mailias {
         return true;
     }
 
-    private function readUser() {
+    private static function readUser() {
         $sql = "SELECT id, short  FROM user WHERE email = ? AND activ = 1";
 
         $statement = $this->mysqli->prepare($sql);
