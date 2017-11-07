@@ -27,7 +27,11 @@ $insert = (isset($_GET['insert'])) ? TRUE : FALSE;
 
 $delete = [$delete_input];
 
-if ($test = new mailias\mailias('tester@nkio.de', $config)) {
+
+$test = new mailias\mailias();
+$test->setConfig('$config')
+
+if ($test = $test->checkUser('tester@nkio.de')) {
 
     if ($delete) {
         if (!$test->delAlias($delete)) {
