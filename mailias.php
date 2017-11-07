@@ -1,12 +1,6 @@
 <?php
 
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
-/*
  *  $config = [
  *    'mysqli' => [
  *      'user' => 'USERNAME',
@@ -38,13 +32,7 @@ class mailias {
     protected $unlock = false;
     public $deleted = [];
 
-    public function __construct($user_email = null, $config = null) {
-
-        if (!self::checkEmail($user_email)) {
-            self::addNotification('error', 'system', __FUNCTION__, 'checkEmail failed');
-            return false;
-        }
-        $this->user['email'] = $user_email;
+    public function setConfig($config = null) {
 
         if (!self::checkConfig($config)) {
             self::addNotification('error', 'system', __FUNCTION__, 'checkConfig failed');
@@ -57,6 +45,17 @@ class mailias {
             self::addNotification('error', 'system', __FUNCTION__, 'connect failed');
             return false;
         }
+		
+		return true;
+    }
+	
+    public function checkUser($user_email = null) {
+
+        if (!self::checkEmail($user_email)) {
+            self::addNotification('error', 'system', __FUNCTION__, 'checkEmail failed');
+            return false;
+        }
+        $this->user['email'] = $user_email;
 
         // Prüfen ob User in Datenbank existiert.
         if (!self::readUser()) {
@@ -65,7 +64,9 @@ class mailias {
         }
 
         $this->unlock = true;
-    }
+		
+		return true;
+    }	
 
     /*
      * addNote('case', 'class', 'function', 'text')
@@ -75,25 +76,30 @@ class mailias {
      * text
      */
 
-    private function addNotification($case, $class, $function, $text) {
-        $this->notification[$case][$class][++$this->notificationID] = [
+    private static function addNotification($case, $class, $function, $text) {
+        $this->notification[$case][$class][$this->notificationID] = [
             'function' => $function,
             'text' => $text
         ];
+		
+		$this->notificationID++;
     }
 
-    public function getNotification($case, $class) {
+    public function getNotification($case = null, $class = null) {
 
+		if($case == null AND $class == NULL)
+			return $this->notification;
+	
         $notification = [];
 
         if (!empty($this->notification[$case][$class])) {
             $notification = $this->notification[$case][$class];
         }
-
+		
         return $notification;
     }
 
-    private function checkConfig($config = null) {
+    private static function checkConfig($config = null) {
         if (!is_array($config)) {
             self::addNotification('debug', 'system', __FUNCTION__, 'Config not set');
             return false;
@@ -107,7 +113,7 @@ class mailias {
         return true;
     }
 
-    private function checkEmail($email = null) {
+    private static function checkEmail($email = null) {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             self::addNotification('debug', 'system', __FUNCTION__, 'Email not valid -> ' . $email);
             return false;
@@ -115,7 +121,7 @@ class mailias {
         return true;
     }
 
-    private function checkAlias($alias) {
+    private static function checkAlias($alias) {
         $pattern = "/^(?=^.{5,30}$)([a-zA-Z0-9]+)(?:[\w]*[a-zA-Z0-9]+)$/";
         /*
          * Gesamt 5 - 30 Zeichen
@@ -124,25 +130,25 @@ class mailias {
          */
 
         if (preg_match($pattern, $alias)) {
-            return $alias;
+            return true;
         }
 
         self::addNotification('debug', 'system', __FUNCTION__, 'Alias not valid -> ' . $alias);
         return false;
     }
 
-    private function checkDomain($domain = null) {
+    private static function checkDomain($domain = null) {
         $pattern = "/(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)/";
 
         if (preg_match($pattern, $domain)) {
-            return $domain;
+            return true;
         }
 
         self::addNotification('debug', 'system', __FUNCTION__, 'Domain not valid -> ' . $domain);
         return false;
     }
 
-    private function checkDescription($description) {
+    private static function checkDescription($description) {
         $pattern = "/^([\w\ \-\.]){0,250}$/";
         /*
          * Gesamt 0 - 250 Zeichen
@@ -151,7 +157,7 @@ class mailias {
          */
 
         if (preg_match($pattern, $description)) {
-            return $description;
+            return true;
         }
 
         self::addNotification('error', 'system', __FUNCTION__, 'Description not valid -> ' . $description);
@@ -161,8 +167,12 @@ class mailias {
     public function getList() {
         return $this->data;
     }
+	
+	public function getShort() {
+        return $this->user['short'];
+    }
 
-    private function connect() {
+    private static function connect() {
         $this->mysqli = new \mysqli($this->config['mysqli']['host'], $this->config['mysqli']['user'], $this->config['mysqli']['pass'], $this->config['mysqli']['database'], $this->config['mysqli']['port']);
         $this->mysqli->set_charset('utf8');
 
@@ -197,19 +207,18 @@ class mailias {
         return true;
     }
 
-    private function readUser() {
-        $sql = "SELECT id, short, activ FROM user WHERE email = ?";
+    private static function readUser() {
+        $sql = "SELECT id, short  FROM user WHERE email = ? AND activ = 1";
 
         $statement = $this->mysqli->prepare($sql);
         $statement->bind_param('s', $this->user['email']);
         $statement->execute();
 
-        if ($result = $statement->get_result()) {
+        if ($result = $statement->get_result() AND $result->num_rows > 0) {
             $user = $result->fetch_assoc();
 
             $this->user['id'] = $user['id'];
             $this->user['short'] = $user['short'];
-            $this->user['activ'] = $user['activ'];
 
             $result->free();
 
@@ -311,6 +320,8 @@ class mailias {
             return false;
         }
 
+		self::addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich angelegt: ' . $insert['alias']);
+		
         return true;
     }
 
@@ -387,6 +398,11 @@ class mailias {
 
             $this->deleted[] = $delete['alias'];
         }
+		
+		foreach($this->deleted as $alias)
+		{
+			self::addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich gelöscht: '. $alias);
+		}
 
         return true;
     }
