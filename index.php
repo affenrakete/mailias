@@ -31,7 +31,7 @@ $delete = [$delete_input];
 
 
 $test = new mailias\mailias();
-$test->setConfig('$config')
+$test->setConfig('$config');
 
 if ($test->checkUser('tester@nkio.de')) {
 
