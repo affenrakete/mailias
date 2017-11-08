@@ -46,7 +46,7 @@ class mailias {
     private $error = [];
     private $notification = [];
     private $notificationID = 0;
-    private $unlock = false;
+    private $locked = true;
     private $deleted = [];
 
     public function setConfig($config = null) {
@@ -80,7 +80,7 @@ class mailias {
             return false;
         }
 
-        $this->unlock = true;
+        $this->locked = false;
 
         return true;
     }
@@ -249,8 +249,8 @@ class mailias {
          * Sind alle Informationen gegeben?
          */
 
-        if (!$this->unlock) {
-            $this->addNotification('error', 'system', __FUNCTION__, 'unlock -> ' . $this->unlock);
+        if ($this->locked) {
+            $this->addNotification('error', 'system', __FUNCTION__, 'locked');
         }
 
         // Prüfen Nutzereingaben
@@ -280,7 +280,9 @@ class mailias {
         }
 
         if ($this->insertAliasExe($alias, $receive, $description, $aliasEmail)) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich angelegt: ' . $insert['alias']);
+
+            $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich angelegt: ' . $alias);
+            return true;
         }
         return false;
     }
@@ -336,8 +338,8 @@ class mailias {
         $listId = [];
         $toDelete = [];
 
-        if (!$this->unlock) {
-            $this->addNotification('error', 'system', __FUNCTION__, 'unlock -> ' . $this->unlock);
+        if ($this->locked) {
+            $this->addNotification('error', 'system', __FUNCTION__, 'locked');
             return false;
         }
 

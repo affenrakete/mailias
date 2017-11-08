@@ -25,6 +25,6 @@ $config = [
         'host' => 'localhost',
         'port' => '3306'
     ],
-    'domain' => 'YOUR_EMAIL_DOMAIN',    //affenrakete.de
-    'user' => 'WWW_USER'                //$_SERVER['USER']
+    'domain' => 'YOUR_EMAIL_DOMAIN', //affenrakete.de
+    'user' => 'WWW_USER' //$_SERVER['USER']
 ];
