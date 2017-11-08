@@ -134,6 +134,7 @@ class mailias {
     private function checkEmail($email = null) {
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->addNotification('debug', 'system', __FUNCTION__, 'Email not valid -> ' . $email);
+            $this->addNotification('info', 'user', __FUNCTION__, 'Email ist nicht gültig.');
             return false;
         }
         return true;
@@ -144,6 +145,7 @@ class mailias {
         switch ($type) {
             case 'alias':
                 $pattern = "/^(?=^.{5,30}$)([a-zA-Z0-9]+)(?:[\w]*[a-zA-Z0-9]+)$/";
+                $user_info = "Alias ist ungültig.";
                 /*
                  * Gesamt 5 - 30 Zeichen
                  * a-o A-Z 0-9
@@ -153,6 +155,7 @@ class mailias {
 
             case 'description':
                 $pattern = "/^([\w\ \-\.]){0,250}$/";
+                $user_info = "Beschreibung ist nicht gültig.";
                 /*
                  * Gesamt 0 - 250 Zeichen
                  * a-z A-Z 0-9
@@ -162,6 +165,7 @@ class mailias {
 
             case 'domain':
                 $pattern = "/(?=^.{4,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)/";
+                $user_info = "Domain ist nmicht gültig.";
                 break;
 
             default:
@@ -173,7 +177,18 @@ class mailias {
         }
 
         $this->addNotification('debug', 'system', __FUNCTION__, $type . ' not valid -> ' . $input);
+        $this->addNotification('info', 'user', __FUNCTION__, $user_info);
         return false;
+    }
+
+    private function checkUnlock() {
+        if ($this->locked) {
+            $this->addNotification('error', 'system', __FUNCTION__, 'locked');
+            $this->addNotification('info', 'user', __FUNCTION__, 'System gesperrt.');
+
+            return false;
+        }
+        return true;
     }
 
     public function getList() {
@@ -244,35 +259,18 @@ class mailias {
 
     public function insertAlias($alias = null, $receive = null, $description = null) {
 
-        /*
-         * Pre Check
-         * Sind alle Informationen gegeben?
-         */
-
-        if ($this->locked) {
-            $this->addNotification('error', 'system', __FUNCTION__, 'locked');
+        if (!$this->checkUnlock()) {
+            return false;
         }
 
         // Prüfen Nutzereingaben
-        if (!$this->checkInput($alias, 'alias')) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Alias ist ungültig.');
-        }
+        $this->checkInput($alias, 'alias');
+        $this->checkEmail($receive);
+        $this->checkInput($description, 'description');
 
-        if (!$this->checkEmail($receive)) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Empfänger Email ist nicht gültig.');
-        }
-
-        if (!$this->checkInput($description, 'description')) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Beschreibung ist nicht gültig.');
-        }
-
-        // Komplette Alias Adresse zusammensetzen
+        // Komplette Alias Adresse zusammensetzen und prüfen
         $aliasEmail = \strtolower($this->user['short'] . "-" . $alias . "@" . $this->config['domain']);
-
-        // Komplette Alias Adresse checken
-        if (!$this->checkEmail($aliasEmail)) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Alias Email ist ungültig.');
-        }
+        $this->checkEmail($aliasEmail);
 
         // Abbruch wenn Fehler aufgetreten sind.
         if ($this->notificationID > 0) {
@@ -284,6 +282,7 @@ class mailias {
             $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich angelegt: ' . $alias);
             return true;
         }
+
         return false;
     }
 
@@ -335,18 +334,18 @@ class mailias {
 
     public function delAlias($inputId = null) {
 
-        $listId = [];
-        $toDelete = [];
-
-        if ($this->locked) {
-            $this->addNotification('error', 'system', __FUNCTION__, 'locked');
+        if (!$this->checkUnlock()) {
             return false;
         }
+
+        $listId = [];
+        $toDelete = [];
 
         foreach ($inputId as $id) {
             $listId[] = (int) $id;
         }
 
+        // Benötigte Daten zum löschen aus Datenbank ziehen
         $sql = "SELECT id, alias FROM mailias WHERE id IN (" . implode(',', array_unique($listId)) . ") AND user_id = ? ORDER BY id ASC";
 
         $statement = $this->mysqli->prepare($sql);
@@ -364,55 +363,54 @@ class mailias {
         /*
          * Do the loop
          */
+        $this->delAliasExe($toDelete);
+
+        return true;
+    }
+
+    private function delAliasExe($toDelete = null) {
+
         foreach ($toDelete as $delete) {
 
-            if (!$this->delAliasExe($delete)) {
-                break;
+            /*
+             * Delete .qmail
+             * Weiterleitung durch Löschung von .qmail Datei deaktivieren
+             */
+
+            $deletePart = explode('@', $delete['alias']);
+            $deleteFile = \strtolower("/home/" . $this->config['user'] . "/.qmail-" . $deletePart[0]);
+
+            if (!\file_exists($deleteFile)) {
+                $this->addNotification('info', 'user', __FUNCTION__, 'Weiterleitung existiert nicht.');
+            } elseif (!\unlink($deleteFile)) {
+                $this->addNotification('info', 'user', __FUNCTION__, 'Weiterleitung konnte nicht gelöscht werden.');
             }
+
+            /*
+             * Delete SQL
+             * Daten aus SQL löschen
+             */
+
+            $sql = "DELETE FROM mailias WHERE id = ?";
+
+            $statement = $this->mysqli->prepare($sql);
+            $statement->bind_param('i', $delete['id']);
+
+            if (!$statement->execute()) {
+                $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse konnte nicht gelöscht werden.');
+                $this->addNotification('debug', 'system', __FUNCTION__, '(' . $this->mysqli->errno . ') ' . $this->mysqli->error);
+            }
+
             $this->deleted[] = $delete['alias'];
+
+            if ($this->notificationID > 0) {
+                return false;
+            }
         }
 
         // Meldungen für User erzeugen
         foreach ($this->deleted as $alias) {
             $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich gelöscht: ' . $alias);
-        }
-
-        return true;
-    }
-
-    private function delAliasExe($delete = null) {
-
-        /*
-         * Delete .qmail
-         * Weiterleitung durch Löschung von .qmail Datei deaktivieren
-         */
-
-        $deletePart = explode('@', $delete['alias']);
-        $deleteFile = \strtolower("/home/" . $this->config['user'] . "/.qmail-" . $deletePart[0]);
-
-        if (!\file_exists($deleteFile)) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Weiterleitung existiert nicht.');
-        } elseif (!\unlink($deleteFile)) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Weiterleitung konnte nicht gelöscht werden.');
-        }
-
-        /*
-         * Delete SQL
-         * Daten aus SQL löschen
-         */
-
-        $sql = "DELETE FROM mailias WHERE id = ?";
-
-        $statement = $this->mysqli->prepare($sql);
-        $statement->bind_param('i', $delete['id']);
-
-        if (!$statement->execute()) {
-            $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse konnte nicht gelöscht werden.');
-            $this->addNotification('debug', 'system', __FUNCTION__, '(' . $this->mysqli->errno . ') ' . $this->mysqli->error);
-        }
-
-        if ($this->notificationID > 0) {
-            return false;
         }
 
         return true;
