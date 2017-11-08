@@ -1,7 +1,5 @@
 <?php
 
-namespace mailias;
-
 error_reporting(-1);
 ini_set("display_errors", 1);
 
@@ -17,8 +15,8 @@ function generateRandomString($length = 10) {
     return $randomString;
 }
 
-include('mailias.php');
-include('config.php');
+include('./../mailias.php');
+include('./config.php');
 
 $alias = generateRandomString(6);
 $receive = generateRandomString(10) . "@" . generateRandomString(6) . ".de";
@@ -31,7 +29,7 @@ $delete = [$delete_input];
 
 
 $test = new mailias\mailias();
-$test->setConfig('$config')
+$test->setConfig('$config');
 
 if ($test->checkUser('tester@nkio.de')) {
 
