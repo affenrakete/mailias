@@ -342,8 +342,6 @@ class mailias {
 
     public function delAlias($inputId = null) {
 
-        $deleted = [];
-
         if (!$this->checkUnlock()) {
             return false;
         }
@@ -363,7 +361,7 @@ class mailias {
              */
             $this->destroySql($delete);
 
-            $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich gelöscht: ' . $alias);
+            $this->addNotification('info', 'user', __FUNCTION__, 'Email Adresse erfolgreich gelöscht: ' . $delete['alias']);
         }
 
         return true;
